@@ -35,7 +35,7 @@ contract Strategy is BaseStrategy {
             uint256 _debtPayment
         )
     {
-        _debtPayment = _debtOutstanding - badDebt; // Reverts when attempting to add debt or remove too little
+        _debtPayment = _debtOutstanding - badDebt;
     }
 
     // @dev Provides graceful method to fix accounting if ever necessary
