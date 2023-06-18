@@ -70,34 +70,38 @@ def weth_amount(user, weth):
 
 @pytest.fixture
 def vault(user, gov):
-    vault = Contract('0xc97232527B62eFb0D8ed38CF3EA103A6CcA4037e',owner=user)
+    vault = Contract('0xc97232527B62eFb0D8ed38CF3EA103A6CcA4037e',owner=gov)
     vault.setLockedProfitDegradation(1e18,{'from':gov}) # We do instant-unlock to properly check pps affects
     return vault
 
 @pytest.fixture
-def ytrades(user):
-    return Contract('0x7d2aB9CA511EBD6F03971Fb417d3492aA82513f0',owner=user)
-
-@pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, ytrades, gov):
-    strategy = strategist.deploy(Strategy, vault)
-    strategy.setKeeper(keeper)
+def other_strats(vault):
     strats = []
     for i in range(0,20):
         s = vault.withdrawalQueue(i)
         if s == ZERO_ADDRESS:
             break
         strats.append(s)
+    yield strats
+
+@pytest.fixture
+def ytrades(user):
+    return Contract('0x7d2aB9CA511EBD6F03971Fb417d3492aA82513f0',owner=user)
+
+@pytest.fixture
+def strategy(strategist, keeper, vault, Strategy, ytrades, gov, other_strats):
+    strategy = strategist.deploy(Strategy, vault)
+    strategy.setKeeper(keeper)
+    for s in other_strats:
         vault.updateStrategyDebtRatio(s, 0, {'from':gov})
         Contract(s).harvest({'from':gov})
-    for s in strats:
         vault.removeStrategyFromQueue(s, {'from':gov})
     assert vault.withdrawalQueue(0) == ZERO_ADDRESS
     total = vault.totalAssets()
     ytrades_amount = vault.balanceOf(ytrades) * vault.pricePerShare() / 1e18
     ratio = ytrades_amount / total * 10_000
     ratio += 100 # Add some buffer
-    for s in strats:
+    for s in other_strats:
         vault.updateStrategyDebtRatio(s, 10_000 / 2 - (ratio/2), {'from':gov})
         Contract(s).harvest({'from':gov})
     vault.addStrategy(strategy, 10_000 - vault.debtRatio(), 0, 2**256 - 1, 1_000, {"from": gov})

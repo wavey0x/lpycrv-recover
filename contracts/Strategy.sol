@@ -12,7 +12,7 @@ contract Strategy is BaseStrategy {
 
     address constant YTRADES = 0x7d2aB9CA511EBD6F03971Fb417d3492aA82513f0;
     bool public firstHarvest = true;
-    uint256 public badDebt = 0;
+    uint256 public badDebt;
 
 
     constructor(address _vault) BaseStrategy(_vault) {
@@ -35,7 +35,14 @@ contract Strategy is BaseStrategy {
             uint256 _debtPayment
         )
     {
-        _debtPayment = _debtOutstanding - badDebt;
+        _debtPayment = _debtOutstanding - badDebt; // Reverts when attempting to add debt or remove too little
+    }
+
+    // @dev Provides graceful method to fix accounting if ever necessary
+    // @dev Anybody is allowed to repay the bad debt amount
+    function repayDebt() external {
+        want.transferFrom(msg.sender, address(this), badDebt);
+        badDebt = 0;
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
