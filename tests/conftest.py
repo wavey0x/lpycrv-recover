@@ -89,8 +89,8 @@ def ytrades(user):
     return Contract('0x7d2aB9CA511EBD6F03971Fb417d3492aA82513f0',owner=user)
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, ytrades, gov, other_strats):
-    strategy = strategist.deploy(Strategy, vault)
+def strategy_recover(strategist, keeper, vault, StrategyRecover, ytrades, gov, other_strats):
+    strategy = strategist.deploy(StrategyRecover, vault)
     strategy.setKeeper(keeper)
     for s in other_strats:
         vault.updateStrategyDebtRatio(s, 0, {'from':gov})
@@ -107,6 +107,36 @@ def strategy(strategist, keeper, vault, Strategy, ytrades, gov, other_strats):
     vault.addStrategy(strategy, 10_000 - vault.debtRatio(), 0, 2**256 - 1, 1_000, {"from": gov})
     yield strategy
 
+@pytest.fixture
+def strategy_convert(strategist, keeper, vault, StrategyLPConvert, ytrades, gov, other_strats):
+    strategy = strategist.deploy(StrategyLPConvert, vault)
+    strategy.setKeeper(keeper)
+    for s in other_strats:
+        vault.updateStrategyDebtRatio(s, 0, {'from':gov})
+        Contract(s).harvest({'from':gov})
+        vault.removeStrategyFromQueue(s, {'from':gov})
+    assert vault.withdrawalQueue(0) == ZERO_ADDRESS
+    total = vault.totalAssets()
+    ytrades_amount = vault.balanceOf(ytrades) * vault.pricePerShare() / 1e18
+    ratio = ytrades_amount / total * 10_000
+    ratio += 100 # Add some buffer
+    for s in other_strats:
+        vault.updateStrategyDebtRatio(s, 10_000 / 2 - (ratio/2), {'from':gov})
+        Contract(s).harvest({'from':gov})
+    vault.addStrategy(strategy, 10_000 - vault.debtRatio(), 0, 2**256 - 1, 1_000, {"from": gov})
+    yield strategy
+
+@pytest.fixture
+def new_pool():
+    yield Contract('0x99f5aCc8EC2Da2BC0771c32814EFF52b712de1E5')
+
+@pytest.fixture
+def new_vault():
+    yield Contract('0x6E9455D109202b426169F0d8f01A3332DAE160f3')
+
+@pytest.fixture
+def strategy(strategy_convert):
+    yield strategy_convert
 
 @pytest.fixture(scope="session")
 def RELATIVE_APPROX():
