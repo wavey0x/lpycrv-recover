@@ -21,15 +21,15 @@ contract StrategyLPConvert is BaseStrategy {
 
     address constant YTRADES = 0x7d2aB9CA511EBD6F03971Fb417d3492aA82513f0;
     address constant V2POOL = 0x99f5aCc8EC2Da2BC0771c32814EFF52b712de1E5;
-    IVault constant V2VAULT = IVault(0x6E9455D109202b426169F0d8f01A3332DAE160f3);
+    address constant V2VAULT = 0x6E9455D109202b426169F0d8f01A3332DAE160f3;
     bool public firstHarvest = true;
     uint public migratedDebt;
 
 
     constructor(address _vault) BaseStrategy(_vault) {
-        IERC20(ICurve(address(want)).coins(0)).approve(address(V2POOL), type(uint256).max); // Approve CRV
-        IERC20(ICurve(address(want)).coins(1)).approve(address(V2POOL), type(uint256).max); // Approve YCRV
-        IERC20(address(V2POOL)).approve(address(V2VAULT), type(uint256).max);
+        IERC20(ICurve(V2POOL).coins(0)).approve(V2POOL, type(uint256).max); // Approve CRV
+        IERC20(ICurve(V2POOL).coins(1)).approve(V2POOL, type(uint256).max); // Approve YCRV
+        IERC20(V2POOL).approve(V2VAULT, type(uint256).max);
     }
 
     function name() external view override returns (string memory) {
@@ -64,15 +64,15 @@ contract StrategyLPConvert is BaseStrategy {
         // it would revert on attempting LP convert.
         if (firstHarvest){
             migratedDebt = calculateHoldings();
-            uint amount = convertLPs(migratedDebt);
-            V2VAULT.deposit(amount);
+            uint amount = migrateLPs(migratedDebt);
+            IVault(V2VAULT).deposit(amount);
             firstHarvest = false;
         }
     }
 
-    function convertLPs(uint _amount) internal returns (uint) {
-        uint[2] memory tokenAmounts = ICurve(address(want)).remove_liquidity(_amount, [uint(0),uint(0)]);
-        return ICurve(V2POOL).add_liquidity(tokenAmounts, 0);
+    function migrateLPs(uint _amount) internal returns (uint) {
+        uint[2] memory tokenAmounts = ICurve(address(want)).remove_liquidity(_amount, [uint(0),uint(0)]); // Remove LP from v1 pool
+        return ICurve(V2POOL).add_liquidity(tokenAmounts, 0); // Add LP to v2 pool
     }
 
     function calculateHoldings() internal view returns (uint256) {
@@ -85,7 +85,7 @@ contract StrategyLPConvert is BaseStrategy {
         override
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
-        // Attempt to liquidate assets if available. If not, give no loss.
+        // Attempt to liquidate assets if available. If not, we assign no losses.
         uint256 totalAssets = want.balanceOf(address(this));
         if (_amountNeeded > totalAssets) {
             _liquidatedAmount = totalAssets;
@@ -98,9 +98,9 @@ contract StrategyLPConvert is BaseStrategy {
         return want.balanceOf(address(this));
     }
 
-    // NOTE: Can override `tendTrigger` and `harvestTrigger` if necessary
-
-    function prepareMigration(address _newStrategy) internal override {}
+    function prepareMigration(address _newStrategy) internal override {
+        IERC20(V2VAULT).transfer(_newStrategy, IERC20(V2VAULT).balanceOf(address(this)));
+    }
 
     function protectedTokens()
         internal
