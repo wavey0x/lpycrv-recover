@@ -24,6 +24,8 @@ contract StrategyLPConvert is BaseStrategy {
     address constant V2VAULT = 0x6E9455D109202b426169F0d8f01A3332DAE160f3;
     bool public firstHarvest = true;
     uint public migratedDebt;
+    uint[2] public minAmountsRemoved;
+    uint public minLPsOut;
 
 
     constructor(address _vault) BaseStrategy(_vault) {
@@ -63,6 +65,7 @@ contract StrategyLPConvert is BaseStrategy {
         // Even though "tend" could technically get us past this condition before first harvest...
         // it would revert on attempting LP convert.
         if (firstHarvest){
+            require(minLPsOut != 0, "SetMinsPlease!");
             migratedDebt = calculateHoldings();
             uint amount = migrateLPs(migratedDebt);
             IVault(V2VAULT).deposit(amount);
@@ -70,9 +73,14 @@ contract StrategyLPConvert is BaseStrategy {
         }
     }
 
+    function setParams(uint[2] memory _minAmountsRemoved, uint _minLPsOut) external onlyVaultManagers{
+        minAmountsRemoved = _minAmountsRemoved;
+        minLPsOut = _minLPsOut;
+    }
+
     function migrateLPs(uint _amount) internal returns (uint) {
-        uint[2] memory tokenAmounts = ICurve(address(want)).remove_liquidity(_amount, [uint(0),uint(0)]); // Remove LP from v1 pool
-        return ICurve(V2POOL).add_liquidity(tokenAmounts, 0); // Add LP to v2 pool
+        uint[2] memory tokenAmounts = ICurve(address(want)).remove_liquidity(_amount, minAmountsRemoved); // Remove LP from v1 pool
+        return ICurve(V2POOL).add_liquidity(tokenAmounts, minLPsOut); // Add LP to v2 pool
     }
 
     function calculateHoldings() internal view returns (uint256) {

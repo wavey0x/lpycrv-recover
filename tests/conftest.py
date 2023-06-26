@@ -141,6 +141,7 @@ def strategy_convert(strategist, keeper, vault, StrategyLPConvert, ytrades, gov,
         vault.updateStrategyDebtRatio(s, 10_000 / 2 - (ratio/2), {'from':gov})
         Contract(s).harvest({'from':gov})
     vault.addStrategy(strategy, 10_000 - vault.debtRatio(), 0, 2**256 - 1, 1_000, {"from": gov})
+    strategy.setParams([1,1],1,{'from':gov})
     yield strategy
 
 @pytest.fixture
