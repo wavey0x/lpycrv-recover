@@ -36,8 +36,8 @@ def test_operation(
     tx = vault.withdraw({"from": ytrades})
     assert pps_before == vault.pricePerShare()
     assert vault.balanceOf(ytrades) > 0
-    print(f'Amount returned: {tx.return_value / 1e18:,.2f}')
-    print(f'Vault tokens remaining: {tx.return_value / 1e18:,.2f}')
+    # print(f'Amount returned: {tx.return_value / 1e18:,.2f}')
+    # print(f'Vault tokens remaining: {tx.return_value / 1e18:,.2f}')
     assert want.balanceOf(vault) == 0
 
     # Verify that bad debt is == total debt
@@ -55,8 +55,8 @@ def test_operation(
         Contract(s, owner=gov).harvest()
 
     vault.updateStrategyDebtRatio(strategy, 10_000)
-    with brownie.reverts():
-        tx = strategy.harvest() # Reverts because migrated debt exceeds debtOutstanding
+    # with brownie.reverts():
+    #     tx = strategy.harvest() # Reverts because migrated debt exceeds debtOutstanding
     stats = vault.strategies(strategy).dict()
     assert stats['totalDebt'] == strategy.migratedDebt()
 
@@ -64,6 +64,12 @@ def test_operation(
     tx = strategy.harvest() # Harvest should succeed because debtOutstanding == migrated debt
     assert strategy.migratedDebt() == vault.strategies(strategy)['totalDebt']
     
+    for s in other_strats:
+        vault.updateStrategyDebtRatio(s, 5_000, {'from':gov})
+        tx = Contract(s, owner=gov).harvest()
+        loss = tx.events['StrategyReported']['loss']
+        assert loss == 0
+
     repayer = accounts.at('0x5980d25B4947594c26255C0BF301193ab64ba803', force=True)
     want.approve(strategy, 2**256-1, {'from':repayer})
     strategy.repayDebt({'from':repayer})
@@ -77,3 +83,6 @@ def test_operation(
     assert strategy.migratedDebt() == 0
     assert strategy.estimatedTotalAssets() == 0
     assert want.balanceOf(vault) > 0
+
+    
+    

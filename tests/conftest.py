@@ -1,7 +1,18 @@
-import pytest
+import pytest, requests
 from brownie import config
 from brownie import Contract, ZERO_ADDRESS
 
+# @pytest.fixture(scope="session", autouse=True)
+# def tenderly_fork(web3, chain):
+#     fork_base_url = "https://simulate.yearn.network/fork"
+#     payload = {"network_id": str(chain.id)}
+#     resp = requests.post(fork_base_url, headers={}, json=payload)
+#     fork_id = resp.json()["simulation_fork"]["id"]
+#     fork_rpc_url = f"https://rpc.tenderly.co/fork/{fork_id}"
+#     print(fork_rpc_url)
+#     tenderly_provider = web3.HTTPProvider(fork_rpc_url, {"timeout": 600})
+#     web3.provider = tenderly_provider
+#     print(f"https://dashboard.tenderly.co/yearn/yearn-web/fork/{fork_id}")
 
 @pytest.fixture
 def gov(accounts):
@@ -93,8 +104,11 @@ def strategy_recover(strategist, keeper, vault, StrategyRecover, ytrades, gov, o
     strategy = strategist.deploy(StrategyRecover, vault)
     strategy.setKeeper(keeper)
     for s in other_strats:
+        s = Contract(s, owner=gov)
+        s.setDoHealthCheck(False)
         vault.updateStrategyDebtRatio(s, 0, {'from':gov})
-        Contract(s).harvest({'from':gov})
+        tx = s.harvest({'from':gov})
+        assert tx.events['StrategyReported']['loss'] == 0
         vault.removeStrategyFromQueue(s, {'from':gov})
     assert vault.withdrawalQueue(0) == ZERO_ADDRESS
     total = vault.totalAssets()
@@ -112,8 +126,11 @@ def strategy_convert(strategist, keeper, vault, StrategyLPConvert, ytrades, gov,
     strategy = strategist.deploy(StrategyLPConvert, vault)
     strategy.setKeeper(keeper)
     for s in other_strats:
+        s = Contract(s, owner=gov)
+        s.setDoHealthCheck(False)
         vault.updateStrategyDebtRatio(s, 0, {'from':gov})
-        Contract(s).harvest({'from':gov})
+        tx = s.harvest({'from':gov})
+        assert tx.events['StrategyReported']['loss'] == 0
         vault.removeStrategyFromQueue(s, {'from':gov})
     assert vault.withdrawalQueue(0) == ZERO_ADDRESS
     total = vault.totalAssets()
