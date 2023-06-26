@@ -70,6 +70,17 @@ def test_operation(
         loss = tx.events['StrategyReported']['loss']
         assert loss == 0
 
+    all_strats = other_strats.append(strategy.address)
+    running_total = 0
+    for s in other_strats:
+        debt = vault.strategies(s)['totalDebt']
+        balance = want.balanceOf(s)
+        total = debt + balance
+        print(f'{s} {total/1e18:,.2f}')
+        running_total += total
+    print(f'Total Assets: {vault.totalAssets()/1e18:,.2f}')
+    print(f'Sum of strategy assets: {running_total/1e18:,.2f}')
+
     repayer = accounts.at('0x5980d25B4947594c26255C0BF301193ab64ba803', force=True)
     want.approve(strategy, 2**256-1, {'from':repayer})
     strategy.repayDebt({'from':repayer})
